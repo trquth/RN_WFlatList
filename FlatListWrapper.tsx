@@ -5,6 +5,7 @@ import React, {
   useImperativeHandle,
   useCallback,
   Ref,
+  ReactElement,
 } from "react";
 import {
   View,
@@ -14,55 +15,61 @@ import {
   FlatListProps,
   ActivityIndicator,
 } from "react-native";
-
-import _, { isEmpty } from "lodash";
-
+import _, { isArray, isEmpty } from "lodash";
 import { useTheme } from "@react-navigation/native";
 import { ItemPlaceHolderEvent } from "../holder";
 import SearchHeader, {
-  CompoundedSearchHeader,
+  SearchHeaderRef,
 } from "../search/search_box/SearchHeader";
 import Loading from "../Loading";
+import SizeBox from "../SizeBox";
+import { Dimension } from "~/config";
+
+//Refer link
+//https://stackoverflow.com/questions/58469229/react-with-typescript-generics-while-using-react-forwardref
+//https://dirask.com/posts/React-forwardRef-with-generic-component-in-TypeScript-D6BoRD
 
 let onEndReachedCalledDuringMomentum = true;
 
-interface ICustomizeFlatListProps extends FlatListProps<any> {
+interface ICustomizeFlatListProps<T> extends FlatListProps<T> {
   startPage?: number;
   onLoadMore?: (
     currentIndex: number,
     searchText: string
-  ) => Promise<any[] | null>;
-  onPullToRefresh: (currentIndex: number) => Promise<any[] | null>;
+  ) => Promise<T[] | null>;
+  onPullToRefresh: (currentIndex: number) => Promise<T[] | null>;
   isEnableSearchBox?: boolean;
-  flatListStyle?: any;
+  flatListStyle?: T;
   CustomizeListEmptyComponent?:
-    | React.ComponentType<any>
+    | React.ComponentType<T>
     | React.ReactElement
     | null
     | undefined;
   loadingType?: "placeholder" | "spin" | "none" | undefined;
+  initData?: T[];
 }
 
-export interface ICustomizeFlatListRefObject {
+export interface ICustomizeFlatListRefObject<T> {
   requestPullToRefresh: () => void;
-  requestUpdateItems: (newItems: any) => void;
-  removeItem: (item: any) => void;
-  addItemFirst: (item: any) => void;
+  requestUpdateItems: (newItems: T[]) => void;
+  removeItem: (item: T) => void;
+  addItemFirst: (item: T) => void;
 }
 
 const WFlatList = forwardRef(
-  (
+  <T extends object>(
     {
       isEnableSearchBox = true,
       loadingType = "placeholder",
+      initData,
       ...props
-    }: ICustomizeFlatListProps,
-    ref: Ref<ICustomizeFlatListRefObject>
+    }: ICustomizeFlatListProps<T>,
+    ref: Ref<ICustomizeFlatListRefObject<T>>
   ) => {
     const [data, setData] = useState<{
       refreshing: boolean;
       loadingMore: boolean;
-      items: any[];
+      items: T[];
       countUpdateItem: number;
       searchText: String;
     }>({
@@ -78,17 +85,17 @@ const WFlatList = forwardRef(
     const currentPage = useRef(props.startPage ? props.startPage : 0);
     const isConnected = useRef(true);
     const searchTextRef = useRef<string>("");
-    const searchBoxRef = useRef<CompoundedSearchHeader>(null);
+    const searchBoxRef = useRef<SearchHeaderRef>(null);
 
     useImperativeHandle(ref, () => ({
       requestPullToRefresh: () => {
         _handlerRefresh();
       },
-      requestUpdateItems: (newItems: any[]) => {
+      requestUpdateItems: (newItems: T[]) => {
         setData({ ...data, items: newItems });
       },
-      removeItem: (item: any) => removeItem(item),
-      addItemFirst: (item: any) => addItemFirst(item),
+      removeItem: (item: T) => removeItem(item),
+      addItemFirst: (item: T) => addItemFirst(item),
     }));
 
     const _isLoading = () => {
@@ -108,7 +115,7 @@ const WFlatList = forwardRef(
         }
         currentPage.current = props.startPage ? props.startPage : 0;
         if (isConnected.current) {
-          let newItems: any[] | null = await props.onPullToRefresh(
+          let newItems: T[] | null = await props.onPullToRefresh(
             currentPage.current
           );
           _updateUIRefresh(newItems);
@@ -141,7 +148,7 @@ const WFlatList = forwardRef(
             searchTextRef.current
         );
         if (isConnected.current) {
-          let newItems: any[] | null =
+          let newItems: T[] | null =
             (await props?.onLoadMore?.(
               currentPage.current,
               searchTextRef.current
@@ -153,7 +160,7 @@ const WFlatList = forwardRef(
       }
     }, [data]);
 
-    const _updateUIRefresh = (newItems: any[] | null) => {
+    const _updateUIRefresh = (newItems: T[] | null) => {
       //   console.log('_updateUIRefresh', newItems);
       if (!_.isNil(newItems) && _.isArray(newItems)) {
         setData({ ...data, items: newItems, loadingMore: false });
@@ -173,7 +180,7 @@ const WFlatList = forwardRef(
       );
     };
 
-    const _updateUILoadMore = (newItems: any[] | null) => {
+    const _updateUILoadMore = (newItems: T[] | null) => {
       //console.log('_updateUILoadMore', newItems);
       if (!_.isNil(newItems) && _.isArray(newItems) && newItems.length > 0) {
         const len = newItems.length;
@@ -192,7 +199,7 @@ const WFlatList = forwardRef(
           data.items.length
       );
     };
-    const _keyExtractor = (item: any, index: number) => {
+    const _keyExtractor = (item: T, index: number) => {
       return index.toString();
     };
 
@@ -208,7 +215,7 @@ const WFlatList = forwardRef(
       }
     };
 
-    const removeItem = (item: any) => {
+    const removeItem = (item: T) => {
       let items = data.items;
       const index = items.indexOf(item);
       if (index !== -1) {
@@ -217,7 +224,7 @@ const WFlatList = forwardRef(
       }
     };
 
-    const addItemFirst = (item: any) => {
+    const addItemFirst = (item: T) => {
       if (item) {
         data.items.unshift(item);
         setData({ ...data, countUpdateItem: data.countUpdateItem + 1 });
@@ -243,7 +250,7 @@ const WFlatList = forwardRef(
             searchTextRef.current
         );
         if (isConnected.current) {
-          let newItems: any[] | null =
+          let newItems: T[] | null =
             (await props?.onLoadMore?.(
               currentPage.current,
               searchTextRef.current
@@ -298,7 +305,7 @@ const WFlatList = forwardRef(
       return (
         <FlatList
           {...props}
-          data={data.items}
+          data={isArray(initData) ? initData : data.items}
           refreshControl={
             <RefreshControl
               tintColor={theme.colors.primary}
@@ -322,7 +329,7 @@ const WFlatList = forwardRef(
     };
 
     const renderPlaceHolder = () => {
-      return [...Array(15).keys()].map(() => <ItemPlaceHolderEvent />);
+      return [...Array(15).keys()].map((i) => <ItemPlaceHolderEvent key={i} />);
     };
 
     const renderSpinLoading = () => {
@@ -356,17 +363,10 @@ const WFlatList = forwardRef(
     return (
       <>
         {isEnableSearchBox ? (
-          <SearchHeader
-            ref={searchBoxRef}
-            isAnimated={false}
-            isClearText={true}
-            isShowLeft={false}
-            isLoadingData={data.loadingMore || data.refreshing}
-            isFilter={false}
-            isHideCancel={true}
-            styleContainer={styles.searchBox}
-            handleSubmit={onChangeText}
-          />
+          <>
+            <SearchHeader ref={searchBoxRef} onChangeText={onChangeText} />
+            <SizeBox height={Dimension.SPACE_32} />
+          </>
         ) : null}
         {data.refreshing && isEmpty(data.items)
           ? renderIndicator()
@@ -375,8 +375,12 @@ const WFlatList = forwardRef(
     );
   }
 );
-
-export default WFlatList;
+export default WFlatList as <T extends unknown>(
+  props: ICustomizeFlatListProps<T> & {
+    ref: Ref<ICustomizeFlatListRefObject<T>>;
+  }
+) => ReactElement;
+//export default WFlatList;
 
 const styles = StyleSheet.create({
   container: {},
