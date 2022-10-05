@@ -278,16 +278,24 @@ const WFlatList = forwardRef(
     }, [data]);
 
     //Search box handler
-    const onChangeText = useCallback((text: string) => {
-      console.log("run run onChangeText");
-      searchTextRef.current = text;
-      if (isEmpty(text)) {
-        _handlerRefresh();
-      } else {
-        onEndReachedCalledDuringMomentum = false;
-        _handleSearchData();
-      }
-    }, []);
+    const onChangeText = useCallback(
+      async (text: string) => {
+        console.log("run run onChangeText");
+        searchTextRef.current = text;
+        if (isEmpty(text)) {
+          //Support no paging
+          if (initData) {
+            await props?.onLoadMore?.(0, "");
+            return;
+          }
+          _handlerRefresh();
+        } else {
+          onEndReachedCalledDuringMomentum = false;
+          _handleSearchData();
+        }
+      },
+      [initData, _handlerRefresh, _handleSearchData]
+    );
 
     const renderEmptyList = useCallback(() => {
       if (
